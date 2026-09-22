@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: #e5e7eb; }
+        .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+        .sidebar { background: #111827; padding: 24px 18px; border-right: 1px solid rgba(148,163,184,0.2); }
+        .brand { font-size: 1.6rem; font-weight: 700; margin-bottom: 24px; }
+        .nav a, .nav form button { display: block; width: 100%; text-align: left; padding: 12px 14px; border-radius: 10px; color: #e5e7eb; text-decoration: none; background: transparent; border: none; cursor: pointer; margin-bottom: 6px; }
+        .nav a:hover, .nav form button:hover { background: rgba(34,197,94,0.12); }
+        .main { padding: 28px; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        h1 { margin: 0; font-size: 2rem; }
+        .actions { display: flex; gap: 12px; }
+        .btn { display: inline-block; text-decoration: none; padding: 10px 16px; border-radius: 10px; font-weight: 700; }
+        .btn-primary { background: #22c55e; color: #062d12; }
+        .btn-secondary { background: #1f2937; color: #e5e7eb; border: 1px solid rgba(148,163,184,0.2); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+        .card { background: rgba(17,24,39,0.9); border: 1px solid rgba(148,163,184,0.16); border-radius: 16px; padding: 18px; }
+        .pill { display: inline-block; background: rgba(34,197,94,0.12); color: #86efac; padding: 6px 10px; border-radius: 999px; font-size: 0.75rem; text-transform: uppercase; }
+        .value { font-size: 1.8rem; margin: 14px 0; font-weight: 700; }
+        .muted { color: #94a3b8; }
+        .row { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
+        .small-btn { text-decoration: none; color: #e5e7eb; background: #0b1220; border: 1px solid rgba(148,163,184,0.2); padding: 8px 12px; border-radius: 8px; }
+        .danger { color: #fca5a5; }
+        form { display: inline; }
+        button.small-btn { cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="brand">FinTrack</div>
+            <nav class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/accounts">Contas</a>
+                <a href="/transactions">Transações</a>
+                <form action="/logout" method="POST">
+                    <button type="submit">Sair</button>
+                </form>
+            </nav>
+        </aside>
+
+        <main class="main">
+            <div class="topbar">
+                <h1>Contas</h1>
+                <div class="actions">
+                    <a class="btn btn-primary" href="/accounts/new">+ Nova conta</a>
+                </div>
+            </div>
+
+            <div class="grid">
+                <% if (accounts.length === 0) { %>
+                    <div class="card">
+                        <p class="muted">Ainda não tens contas. Cria a tua primeira conta para começar.</p>
+                    </div>
+                <% } %>
+
+                <% accounts.forEach(account => { %>
+                    <div class="card">
+                        <div class="pill"><%= account.type %></div>
+                        <div class="value"><%= formatCurrency(account.current_balance) %></div>
+                        <div><strong><%= account.name %></strong></div>
+                        <div class="muted"><%= account.currency %></div>
+
+                        <div class="row">
+                            <a class="small-btn" href="/accounts/<%= account.id %>/edit">Editar</a>
+                            <form action="/accounts/<%= account.id %>/delete" method="POST" onsubmit="return confirm('Tens a certeza?');">
+                                <button class="small-btn danger" type="submit">Eliminar</button>
+                            </form>
+                        </div>
+                    </div>
+                <% }); %>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

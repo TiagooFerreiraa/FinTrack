@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: #e5e7eb; }
+        .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+        .sidebar { background: #111827; padding: 24px 18px; border-right: 1px solid rgba(148,163,184,0.2); }
+        .brand { font-size: 1.6rem; font-weight: 700; margin-bottom: 24px; }
+        .nav a, .nav form button { display: block; width: 100%; text-align: left; padding: 12px 14px; border-radius: 10px; color: #e5e7eb; text-decoration: none; background: transparent; border: none; cursor: pointer; margin-bottom: 6px; }
+        .nav a:hover, .nav form button:hover { background: rgba(34,197,94,0.12); }
+        .main { padding: 28px; }
+        .card { max-width: 700px; background: rgba(17,24,39,0.9); border: 1px solid rgba(148,163,184,0.16); border-radius: 18px; padding: 24px; }
+        h1 { margin-top: 0; }
+        label { display: block; margin-bottom: 8px; color: #cbd5e1; }
+        input, select { width: 100%; background: #0b1220; color: #fff; border: 1px solid rgba(148,163,184,0.2); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; }
+        .btn { display: inline-block; background: #22c55e; color: #062d12; font-weight: 700; text-decoration: none; border: none; border-radius: 10px; padding: 12px 18px; cursor: pointer; }
+        .alert { background: rgba(239,68,68,0.12); color: #fecaca; border: 1px solid rgba(239,68,68,0.4); border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; }
+        .row { display: flex; gap: 12px; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="brand">FinTrack</div>
+            <nav class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/accounts">Contas</a>
+                <a href="/transactions">Transações</a>
+                <form action="/logout" method="POST">
+                    <button type="submit">Sair</button>
+                </form>
+            </nav>
+        </aside>
+
+        <main class="main">
+            <div class="card">
+                <h1><%= title %></h1>
+
+                <% if (error) { %>
+                    <div class="alert"><%= error %></div>
+                <% } %>
+
+                <form method="POST" action="/transactions/new">
+                    <label for="account_id">Conta</label>
+                    <select id="account_id" name="account_id" required>
+                        <option value="">Seleciona uma conta</option>
+                        <% accounts.forEach(account => { %>
+                            <option value="<%= account.id %>" <%= transaction && transaction.account_id == account.id ? 'selected' : '' %>><%= account.name %></option>
+                        <% }); %>
+                    </select>
+
+                    <label for="type">Tipo</label>
+                    <select id="type" name="type">
+                        <option value="despesa" <%= transaction && transaction.type === 'despesa' ? 'selected' : '' %>>Despesa</option>
+                        <option value="receita" <%= transaction && transaction.type === 'receita' ? 'selected' : '' %>>Receita</option>
+                        <option value="transferencia" <%= transaction && transaction.type === 'transferencia' ? 'selected' : '' %>>Transferência</option>
+                    </select>
+
+                    <label for="category_id">Categoria</label>
+                    <select id="category_id" name="category_id">
+                        <option value="">Sem categoria</option>
+                        <% categories.forEach(category => { %>
+                            <option value="<%= category.id %>" <%= transaction && transaction.category_id == category.id ? 'selected' : '' %>><%= category.name %></option>
+                        <% }); %>
+                    </select>
+
+                    <label for="amount">Montante</label>
+                    <input id="amount" name="amount" type="number" step="0.01" min="0.01" value="<%= transaction ? transaction.amount || '' : '' %>" required>
+
+                    <label for="description">Descrição</label>
+                    <input id="description" name="description" type="text" value="<%= transaction ? transaction.description || '' : '' %>">
+
+                    <label for="transaction_date">Data</label>
+                    <input id="transaction_date" name="transaction_date" type="date" value="<%= transaction ? transaction.transaction_date || '' : new Date().toISOString().slice(0,10) %>" required>
+
+                    <label for="destination_account_id">Conta de destino (transferências)</label>
+                    <select id="destination_account_id" name="destination_account_id">
+                        <option value="">Nenhuma</option>
+                        <% accounts.forEach(account => { %>
+                            <option value="<%= account.id %>" <%= transaction && transaction.destination_account_id == account.id ? 'selected' : '' %>><%= account.name %></option>
+                        <% }); %>
+                    </select>
+
+                    <div class="row">
+                        <button class="btn" type="submit">Guardar</button>
+                        <a class="btn" href="/transactions" style="background:#1f2937;color:#e5e7eb;border:1px solid rgba(148,163,184,0.2);">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: #e5e7eb;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            background: #111827;
+            padding: 28px 18px;
+            border-right: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .brand {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 28px;
+        }
+
+        .nav {
+            display: grid;
+            gap: 10px;
+        }
+
+        .nav a,
+        .nav form button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 12px 14px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #e5e7eb;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        .nav a:hover,
+        .nav form button:hover {
+            background: rgba(34, 197, 94, 0.12);
+        }
+
+        .main {
+            padding: 28px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 22px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+
+        .welcome {
+            color: #94a3b8;
+        }
+
+.cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(180px, 1fr));
+            gap: 20px;
+            margin-top: 28px;
+        }
+
+        .card {
+            background: rgba(17, 24, 39, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 16px;
+            padding: 22px;
+        }
+
+        .label {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .value {
+            margin-top: 10px;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .positive { color: #86efac; }
+        .negative { color: #fca5a5; }
+        .neutral { color: #e2e8f0; }
+
+        .list {
+            margin-top: 28px;
+            background: rgba(17, 24, 39, 0.9);
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 14px 18px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            text-align: left;
+        }
+
+        th {
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.9);
+        }
+
+        .chip {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+        }
+
+        .chip.receita { background: rgba(34, 197, 94, 0.12); color: #86efac; }
+        .chip.despesa { background: rgba(239, 68, 68, 0.12); color: #fca5a5; }
+        .chip.transferencia { background: rgba(59, 130, 246, 0.12); color: #bfdbfe; }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="brand">FinTrack</div>
+            <nav class="nav">
+                <a href="/dashboard">Dashboard</a>
+                <a href="/accounts">Contas</a>
+                <a href="/transactions">Transações</a>
+                <a href="#">Orçamentos</a>
+                <a href="#">Objetivos</a>
+                <form action="/logout" method="POST">
+                    <button type="submit">Sair</button>
+                </form>
+            </nav>
+        </aside>
+
+        <main class="main">
+            <div class="topbar">
+                <div>
+                    <div class="welcome">Bem-vindo</div>
+                    <h1><%= user.name %></h1>
+                </div>
+            </div>
+
+            <div class="cards">
+                <div class="card">
+                    <div class="label">Saldo total</div>
+                    <div class="value neutral"><%= formatCurrency(totalBalance) %></div>
+                </div>
+                <div class="card">
+                    <div class="label">Receitas</div>
+                    <div class="value positive"><%= formatCurrency(summary.total_income) %></div>
+                </div>
+                <div class="card">
+                    <div class="label">Despesas</div>
+                    <div class="value negative"><%= formatCurrency(summary.total_expenses) %></div>
+                </div>
+            </div>
+
+            <div class="list">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Tipo</th>
+                            <th>Descrição</th>
+                            <th>Conta</th>
+                            <th>Valor</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% recentTransactions.forEach(tx => { %>
+                            <tr>
+                                <td><%= new Date(tx.transaction_date).toLocaleDateString('pt-PT') %></td>
+                                <td><span class="chip <%= tx.type %>"><%= tx.type %></span></td>
+                                <td><%= tx.description || 'Sem descrição' %></td>
+                                <td><%= tx.account_name || 'N/A' %></td>
+                                <td><%= tx.type === 'despesa' ? '-' : '' %><%= formatCurrency(tx.amount) %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
