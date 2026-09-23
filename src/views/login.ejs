@@ -4,111 +4,47 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
     <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #0f172a;
-            color: #e5e7eb;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-        }
-
-        .auth-card {
-            background: rgba(17, 24, 39, 0.9);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 18px;
-            width: min(92vw, 440px);
-            padding: 32px 28px;
-            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
-        }
-
-        h1 {
-            margin: 0 0 8px;
-            font-size: 2rem;
-            text-align: center;
-        }
-
-        p {
-            margin: 0 0 24px;
-            color: #94a3b8;
-            text-align: center;
-        }
-
-        .alert {
-            background: rgba(239, 68, 68, 0.12);
-            color: #fecaca;
-            border: 1px solid rgba(239, 68, 68, 0.4);
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 16px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            color: #cbd5e1;
-        }
-
-        input {
-            width: 100%;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-            border-radius: 10px;
-            background: #0b1220;
-            color: #fff;
-            padding: 12px 14px;
-            margin-bottom: 18px;
-            font-size: 1rem;
-        }
-
-        button {
-            width: 100%;
-            border: none;
-            border-radius: 10px;
-            background: #22c55e;
-            color: #062d12;
-            font-weight: 700;
-            padding: 13px 16px;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-
-        .bottom-link {
-            text-align: center;
-            margin-top: 18px;
-            color: #cbd5e1;
-        }
-
-        .bottom-link a {
-            color: #86efac;
-            text-decoration: none;
-        }
+        body { background: linear-gradient(135deg, #0b1220, #111827 60%, #0f172a); color: #e5e7eb; min-height: 100vh; }
+        .auth-card { background: rgba(17, 24, 39, 0.88); border: 1px solid rgba(148,163,184,.2); border-radius: 1rem; box-shadow: 0 1rem 3rem rgba(0,0,0,.35); }
+        .form-control, .form-control:focus { background: #0b1220; color: #fff; border-color: rgba(148,163,184,.25); }
+        .form-control::placeholder { color: #94a3b8; }
+        .alert { border-radius: .75rem; }
     </style>
 </head>
-<body>
-    <div class="auth-card">
-        <h1>Entrar</h1>
-        <p>Bem-vindo de volta ao FinTrack</p>
+<body class="d-flex align-items-center justify-content-center">
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-5 col-lg-4">
+                <div class="auth-card p-4 p-md-5">
+                    <h1 class="h2 text-center mb-2">Entrar</h1>
+                    <p class="text-secondary text-center mb-4">Bem-vindo de volta ao FinTrack</p>
 
-        <% if (error) { %>
-            <div class="alert"><%= error %></div>
-        <% } %>
+                    <% if (error) { %>
+                        <div class="alert alert-danger"><%= error %></div>
+                    <% } %>
 
-        <form method="POST" action="/login">
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" value="<%= formData.email || '' %>" required>
+                    <form method="POST" action="/login">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input id="email" name="email" type="email" class="form-control" value="<%= formData.email || '' %>" required>
+                        </div>
 
-            <label for="password">Palavra-passe</label>
-            <input id="password" name="password" type="password" required>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Palavra-passe</label>
+                            <input id="password" name="password" type="password" class="form-control" required>
+                        </div>
 
-            <button type="submit">Entrar</button>
-        </form>
+                        <button type="submit" class="btn btn-success w-100 fw-semibold">Entrar</button>
+                    </form>
 
-        <div class="bottom-link">
-            Ainda não tens conta? <a href="/register">Cria uma agora</a>
+                    <p class="text-center mt-4 mb-0 text-secondary">
+                        Ainda não tens conta? <a href="/register" class="text-success text-decoration-none">Cria uma agora</a>
+                    </p>
+                </div>
+            </div>
         </div>
     </div>
 </body>
