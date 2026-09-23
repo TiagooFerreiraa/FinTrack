@@ -30,6 +30,14 @@ function formatCurrency(value) {
     });
 }
 
+function getCurrentMonthAndYear() {
+    const now = new Date();
+    return {
+        month: now.getMonth() + 1,
+        year: now.getFullYear()
+    };
+}
+
 router.get('/', (req, res) => {
     if (req.session.user) {
         return res.redirect('/dashboard');
@@ -203,6 +211,7 @@ router.post('/logout', requireAuth, (req, res) => {
 
 router.get('/dashboard', requireAuth, async (req, res) => {
     const userId = req.session.user.id;
+    const { month, year } = getCurrentMonthAndYear();
 
     try {
         const [accounts] = await db.execute(
@@ -218,6 +227,18 @@ router.get('/dashboard', requireAuth, async (req, res) => {
              FROM transactions
              WHERE user_id = ?`,
             [userId]
+        );
+
+        const [monthlySummary] = await db.execute(
+            `SELECT
+                COALESCE(SUM(CASE WHEN type = 'receita' THEN amount ELSE 0 END), 0) AS month_income,
+                COALESCE(SUM(CASE WHEN type = 'despesa' THEN amount ELSE 0 END), 0) AS month_expenses,
+                COALESCE(SUM(CASE WHEN type = 'receita' THEN amount ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN type = 'despesa' THEN amount ELSE 0 END), 0) AS month_balance
+             FROM transactions
+             WHERE user_id = ?
+               AND MONTH(transaction_date) = ?
+               AND YEAR(transaction_date) = ?`,
+            [userId, month, year]
         );
 
         const [recentTransactions] = await db.execute(
@@ -236,13 +257,69 @@ router.get('/dashboard', requireAuth, async (req, res) => {
             [userId]
         );
 
+        const [budgetRows] = await db.execute(
+            `SELECT b.*, c.name AS category_name, c.color, c.type AS category_type
+             FROM budgets b
+             INNER JOIN categories c ON c.id = b.category_id
+             WHERE b.user_id = ? AND b.period_month = ? AND b.period_year = ?
+             ORDER BY c.name ASC`,
+            [userId, month, year]
+        );
+
+        const budgetStatus = await Promise.all(
+            budgetRows.map(async (budget) => {
+                const [spentRows] = await db.execute(
+                    `SELECT COALESCE(SUM(amount), 0) AS spent
+                     FROM transactions
+                     WHERE user_id = ?
+                       AND category_id = ?
+                       AND type = 'despesa'
+                       AND MONTH(transaction_date) = ?
+                       AND YEAR(transaction_date) = ?`,
+                    [userId, budget.category_id, month, year]
+                );
+
+                const spent = Number(spentRows[0]?.spent || 0);
+                const amountLimit = Number(budget.amount_limit || 0);
+                const remaining = amountLimit - spent;
+                const percent = amountLimit > 0 ? Math.min((spent / amountLimit) * 100, 100) : 0;
+
+                return {
+                    ...budget,
+                    spent,
+                    remaining,
+                    percent,
+                    alert: spent > amountLimit
+                };
+            })
+        );
+
+        const [categorySpendRows] = await db.execute(
+            `SELECT c.name, c.color, COALESCE(SUM(t.amount), 0) AS total
+             FROM transactions t
+             LEFT JOIN categories c ON c.id = t.category_id
+             WHERE t.user_id = ?
+               AND t.type = 'despesa'
+               AND MONTH(t.transaction_date) = ?
+               AND YEAR(t.transaction_date) = ?
+             GROUP BY c.id, c.name, c.color
+             ORDER BY total DESC
+             LIMIT 5`,
+            [userId, month, year]
+        );
+
         res.render('dashboard', {
             title: 'Dashboard',
             user: req.session.user,
             accounts,
             summary: summary[0],
+            monthlySummary: monthlySummary[0],
             recentTransactions,
             totalBalance: Number(accountBalance[0].total_balance || 0),
+            budgetStatus,
+            categorySpendRows,
+            month,
+            year,
             formatCurrency
         });
     } catch (error) {
@@ -393,6 +470,315 @@ router.post('/accounts/:id/delete', requireAuth, async (req, res) => {
         res.status(500).render('error', {
             title: 'Erro ao eliminar conta',
             message: 'Não foi possível remover a conta.',
+            user: req.session.user
+        });
+    }
+});
+
+router.get('/categories', requireAuth, async (req, res) => {
+    try {
+        const userId = req.session.user.id;
+        const [categories] = await db.execute(
+            'SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY user_id IS NULL, name ASC',
+            [userId]
+        );
+
+        const [statsRows] = await db.execute(
+            `SELECT
+                COUNT(*) AS total_categories,
+                SUM(CASE WHEN user_id IS NULL THEN 1 ELSE 0 END) AS default_categories,
+                SUM(CASE WHEN user_id = ? THEN 1 ELSE 0 END) AS personal_categories,
+                SUM(CASE WHEN type = 'receita' THEN 1 ELSE 0 END) AS receitas,
+                SUM(CASE WHEN type = 'despesa' THEN 1 ELSE 0 END) AS despesas
+             FROM categories
+             WHERE user_id IS NULL OR user_id = ?`,
+            [userId, userId]
+        );
+
+        const stats = statsRows[0] || {
+            total_categories: 0,
+            default_categories: 0,
+            personal_categories: 0,
+            receitas: 0,
+            despesas: 0
+        };
+
+        res.render('categories', {
+            title: 'Categorias',
+            user: req.session.user,
+            categories,
+            stats,
+            formatCurrency
+        });
+    } catch (error) {
+        console.error('Erro ao listar categorias:', error);
+        res.status(500).render('error', {
+            title: 'Erro nas categorias',
+            message: 'Não foi possível carregar as categorias.',
+            user: req.session.user
+        });
+    }
+});
+
+router.get('/categories/new', requireAuth, (req, res) => {
+    res.render('category-form', {
+        title: 'Nova categoria',
+        user: req.session.user,
+        category: null,
+        error: null
+    });
+});
+
+router.post('/categories/new', requireAuth, async (req, res) => {
+    const userId = req.session.user.id;
+    const name = String(req.body.name || '').trim();
+    const type = String(req.body.type || 'despesa');
+    const icon = String(req.body.icon || '').trim();
+    const color = String(req.body.color || '#22c55e').trim();
+
+    if (!name) {
+        return res.status(400).render('category-form', {
+            title: 'Nova categoria',
+            user: req.session.user,
+            category: { name, type, icon, color },
+            error: 'O nome da categoria é obrigatório.'
+        });
+    }
+
+    try {
+        await db.execute(
+            'INSERT INTO categories (user_id, name, type, icon, color) VALUES (?, ?, ?, ?, ?)',
+            [userId, name, type, icon || null, color]
+        );
+
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Erro ao criar categoria:', error);
+        res.status(500).render('category-form', {
+            title: 'Nova categoria',
+            user: req.session.user,
+            category: { name, type, icon, color },
+            error: getDbErrorMessage(error)
+        });
+    }
+});
+
+router.get('/categories/:id/edit', requireAuth, async (req, res) => {
+    try {
+        const [rows] = await db.execute(
+            'SELECT * FROM categories WHERE id = ? AND user_id = ?',
+            [req.params.id, req.session.user.id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).render('error', {
+                title: 'Categoria não encontrada',
+                message: 'A categoria pedida não existe ou não pertence ao utilizador atual.',
+                user: req.session.user
+            });
+        }
+
+        res.render('category-form', {
+            title: 'Editar categoria',
+            user: req.session.user,
+            category: rows[0],
+            error: null
+        });
+    } catch (error) {
+        console.error('Erro ao carregar categoria:', error);
+        res.status(500).render('error', {
+            title: 'Erro ao editar categoria',
+            message: 'Não foi possível carregar a categoria.',
+            user: req.session.user
+        });
+    }
+});
+
+router.post('/categories/:id/edit', requireAuth, async (req, res) => {
+    const userId = req.session.user.id;
+    const id = req.params.id;
+    const name = String(req.body.name || '').trim();
+    const type = String(req.body.type || 'despesa');
+    const icon = String(req.body.icon || '').trim();
+    const color = String(req.body.color || '#22c55e').trim();
+
+    if (!name) {
+        return res.status(400).render('category-form', {
+            title: 'Editar categoria',
+            user: req.session.user,
+            category: { id, name, type, icon, color },
+            error: 'O nome da categoria é obrigatório.'
+        });
+    }
+
+    try {
+        await db.execute(
+            'UPDATE categories SET name = ?, type = ?, icon = ?, color = ? WHERE id = ? AND user_id = ?',
+            [name, type, icon || null, color, id, userId]
+        );
+
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Erro ao atualizar categoria:', error);
+        res.status(500).render('category-form', {
+            title: 'Editar categoria',
+            user: req.session.user,
+            category: { id, name, type, icon, color },
+            error: getDbErrorMessage(error)
+        });
+    }
+});
+
+router.post('/categories/:id/delete', requireAuth, async (req, res) => {
+    try {
+        await db.execute('DELETE FROM categories WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+        res.redirect('/categories');
+    } catch (error) {
+        console.error('Erro ao eliminar categoria:', error);
+        res.status(500).render('error', {
+            title: 'Erro ao eliminar categoria',
+            message: 'Não foi possível remover a categoria.',
+            user: req.session.user
+        });
+    }
+});
+
+router.get('/budgets', requireAuth, async (req, res) => {
+    const userId = req.session.user.id;
+    const { month, year } = getCurrentMonthAndYear();
+
+    try {
+        const [budgets] = await db.execute(
+            `SELECT b.*, c.name AS category_name, c.type AS category_type, c.color
+             FROM budgets b
+             INNER JOIN categories c ON c.id = b.category_id
+             WHERE b.user_id = ? AND b.period_month = ? AND b.period_year = ?
+             ORDER BY c.name ASC`,
+            [userId, month, year]
+        );
+
+        const [categories] = await db.execute(
+            'SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY name ASC',
+            [userId]
+        );
+
+        const budgetProgress = await Promise.all(
+            budgets.map(async (budget) => {
+                const [spentRows] = await db.execute(
+                    `SELECT COALESCE(SUM(amount), 0) AS spent
+                     FROM transactions
+                     WHERE user_id = ?
+                       AND category_id = ?
+                       AND type = 'despesa'
+                       AND MONTH(transaction_date) = ?
+                       AND YEAR(transaction_date) = ?`,
+                    [userId, budget.category_id, month, year]
+                );
+
+                const spent = Number(spentRows[0]?.spent || 0);
+
+                return {
+                    ...budget,
+                    spent,
+                    remaining: Number(budget.amount_limit) - spent
+                };
+            })
+        );
+
+        res.render('budgets', {
+            title: 'Orçamentos',
+            user: req.session.user,
+            budgets: budgetProgress,
+            categories,
+            month,
+            year,
+            formatCurrency
+        });
+    } catch (error) {
+        console.error('Erro ao listar orçamentos:', error);
+        res.status(500).render('error', {
+            title: 'Erro nos orçamentos',
+            message: 'Não foi possível carregar os orçamentos.',
+            user: req.session.user
+        });
+    }
+});
+
+router.get('/budgets/new', requireAuth, async (req, res) => {
+    const userId = req.session.user.id;
+    const { month, year } = getCurrentMonthAndYear();
+
+    try {
+        const [categories] = await db.execute(
+            'SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY name ASC',
+            [userId]
+        );
+
+        res.render('budget-form', {
+            title: 'Novo orçamento',
+            user: req.session.user,
+            categories,
+            budget: { period_month: month, period_year: year },
+            error: null
+        });
+    } catch (error) {
+        console.error('Erro ao preparar orçamento:', error);
+        res.status(500).render('error', {
+            title: 'Erro ao preparar orçamento',
+            message: 'Não foi possível carregar o formulário de orçamento.',
+            user: req.session.user
+        });
+    }
+});
+
+router.post('/budgets/new', requireAuth, async (req, res) => {
+    const userId = req.session.user.id;
+    const categoryId = Number(req.body.category_id);
+    const amountLimit = Number(req.body.amount_limit || 0);
+    const periodMonth = Number(req.body.period_month || getCurrentMonthAndYear().month);
+    const periodYear = Number(req.body.period_year || getCurrentMonthAndYear().year);
+
+    try {
+        const [categories] = await db.execute(
+            'SELECT * FROM categories WHERE user_id IS NULL OR user_id = ? ORDER BY name ASC',
+            [userId]
+        );
+
+        if (!categoryId || !amountLimit || amountLimit <= 0) {
+            return res.status(400).render('budget-form', {
+                title: 'Novo orçamento',
+                user: req.session.user,
+                categories,
+                budget: { category_id: categoryId, amount_limit: amountLimit, period_month: periodMonth, period_year: periodYear },
+                error: 'Define uma categoria e um valor válido para o orçamento.'
+            });
+        }
+
+        await db.execute(
+            'INSERT INTO budgets (user_id, category_id, amount_limit, period_month, period_year) VALUES (?, ?, ?, ?, ?)',
+            [userId, categoryId, amountLimit, periodMonth, periodYear]
+        );
+
+        res.redirect('/budgets');
+    } catch (error) {
+        console.error('Erro ao criar orçamento:', error);
+        res.status(500).render('error', {
+            title: 'Erro ao criar orçamento',
+            message: getDbErrorMessage(error),
+            user: req.session.user
+        });
+    }
+});
+
+router.post('/budgets/:id/delete', requireAuth, async (req, res) => {
+    try {
+        await db.execute('DELETE FROM budgets WHERE id = ? AND user_id = ?', [req.params.id, req.session.user.id]);
+        res.redirect('/budgets');
+    } catch (error) {
+        console.error('Erro ao remover orçamento:', error);
+        res.status(500).render('error', {
+            title: 'Erro ao remover orçamento',
+            message: 'Não foi possível remover o orçamento.',
             user: req.session.user
         });
     }

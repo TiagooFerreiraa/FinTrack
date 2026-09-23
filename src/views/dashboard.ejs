@@ -16,6 +16,8 @@
         .badge-receita { background: rgba(34,197,94,.12); color: #86efac; }
         .badge-despesa { background: rgba(239,68,68,.12); color: #fca5a5; }
         .badge-transferencia { background: rgba(59,130,246,.12); color: #bfdbfe; }
+        .budget-bar { height: 10px; border-radius: 999px; overflow: hidden; }
+        .budget-bar .progress-bar { border-radius: 999px; }
     </style>
 </head>
 <body>
@@ -27,8 +29,8 @@
                     <a class="nav-link active bg-success bg-opacity-10" href="/dashboard">Dashboard</a>
                     <a class="nav-link" href="/accounts">Contas</a>
                     <a class="nav-link" href="/transactions">Transações</a>
-                    <a class="nav-link" href="#">Orçamentos</a>
-                    <a class="nav-link" href="#">Objetivos</a>
+                    <a class="nav-link" href="/categories">Categorias</a>
+                    <a class="nav-link" href="/budgets">Orçamentos</a>
                     <form action="/logout" method="POST" class="mt-3">
                         <button type="submit" class="btn btn-outline-light w-100">Sair</button>
                     </form>
@@ -36,30 +38,89 @@
             </aside>
 
             <main class="col-md-9 col-lg-10 p-4 p-lg-5">
-                <div class="d-flex justify-content-between align-items-center mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                     <div>
                         <div class="text-secondary">Bem-vindo</div>
                         <h1 class="h2 mb-0"><%= user.name %></h1>
                     </div>
+                    <div class="text-end">
+                        <div class="small text-secondary">Mês atual</div>
+                        <div class="fw-semibold"><%= month %>/<%= year %></div>
+                    </div>
                 </div>
 
                 <div class="row g-4 mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card-soft rounded-4 p-4 h-100">
                             <div class="text-secondary text-uppercase small">Saldo total</div>
                             <div class="fs-2 fw-bold mt-2"><%= formatCurrency(totalBalance) %></div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card-soft rounded-4 p-4 h-100">
                             <div class="text-secondary text-uppercase small">Receitas</div>
-                            <div class="fs-2 fw-bold text-success mt-2"><%= formatCurrency(summary.total_income) %></div>
+                            <div class="fs-2 fw-bold text-success mt-2"><%= formatCurrency(monthlySummary.month_income) %></div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card-soft rounded-4 p-4 h-100">
                             <div class="text-secondary text-uppercase small">Despesas</div>
-                            <div class="fs-2 fw-bold text-danger mt-2"><%= formatCurrency(summary.total_expenses) %></div>
+                            <div class="fs-2 fw-bold text-danger mt-2"><%= formatCurrency(monthlySummary.month_expenses) %></div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card-soft rounded-4 p-4 h-100">
+                            <div class="text-secondary text-uppercase small">Saldo do mês</div>
+                            <div class="fs-2 fw-bold mt-2 <%= monthlySummary.month_balance >= 0 ? 'text-success' : 'text-danger' %>"><%= formatCurrency(monthlySummary.month_balance) %></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-8">
+                        <div class="card-soft rounded-4 p-4 h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h2 class="h5 mb-0">Orçamentos do mês</h2>
+                                <a href="/budgets" class="btn btn-sm btn-outline-light">Ver todos</a>
+                            </div>
+
+                            <% if (budgetStatus.length === 0) { %>
+                                <div class="text-secondary">Ainda não tens orçamentos definidos para este mês.</div>
+                            <% } else { %>
+                                <% budgetStatus.forEach(budget => { %>
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <div class="fw-semibold"><%= budget.category_name %></div>
+                                            <div class="small <%= budget.alert ? 'text-warning' : 'text-secondary' %>"><%= formatCurrency(budget.spent) %> / <%= formatCurrency(budget.amount_limit) %></div>
+                                        </div>
+                                        <div class="budget-bar bg-secondary-subtle">
+                                            <div class="progress-bar h-100 <%= budget.alert ? 'bg-warning' : 'bg-success' %>" style="width: <%= Math.min(budget.percent, 100) %>%"></div>
+                                        </div>
+                                        <div class="small text-secondary mt-1">
+                                            Restante: <span class="<%= budget.remaining < 0 ? 'text-danger' : 'text-light' %>"><%= formatCurrency(budget.remaining) %></span>
+                                        </div>
+                                    </div>
+                                <% }); %>
+                            <% } %>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card-soft rounded-4 p-4 h-100">
+                            <h2 class="h5 mb-3">Top despesas</h2>
+                            <% if (categorySpendRows.length === 0) { %>
+                                <div class="text-secondary">Ainda não há despesas neste mês.</div>
+                            <% } else { %>
+                                <% categorySpendRows.forEach((item, index) => { %>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="rounded-circle d-inline-block" style="width: 12px; height: 12px; background: <%= item.color || '#22c55e' %>;"></span>
+                                            <span><%= index + 1 %>. <%= item.name %></span>
+                                        </div>
+                                        <strong><%= formatCurrency(item.total) %></strong>
+                                    </div>
+                                <% }); %>
+                            <% } %>
                         </div>
                     </div>
                 </div>
